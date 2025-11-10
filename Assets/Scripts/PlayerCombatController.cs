@@ -1,11 +1,11 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Controller completo per il player con movimento, salto, attacco e animazioni.
 /// Controlli: Frecce per muoversi, Spazio per saltare, F per attaccare
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(Animator))]
 public class PlayerCombatController : MonoBehaviour
 {
     [Header("Movement Settings")]
@@ -48,6 +48,19 @@ public class PlayerCombatController : MonoBehaviour
     [Tooltip("Sprite Renderer del player")]
     [SerializeField] private SpriteRenderer spriteRenderer;
 
+    [Header("Sprite Settings")]
+    [Tooltip("Sprite quando il player è fermo")]
+    [SerializeField] private Sprite idleSprite;
+    
+    [Tooltip("Sprite quando il player cammina")]
+    [SerializeField] private Sprite walkSprite;
+    
+    [Tooltip("Sprite quando il player salta")]
+    [SerializeField] private Sprite jumpSprite;
+    
+    [Tooltip("Sprite quando il player attacca")]
+    [SerializeField] private Sprite attackSprite;
+
     // Components
     private Rigidbody2D rb;
     private Animator animator;
@@ -65,6 +78,12 @@ public class PlayerCombatController : MonoBehaviour
     private int animAttack;
     private int animVerticalVelocity;
 
+    // Input actions
+    private PlayerInput playerInput;
+    private InputAction moveAction;
+    private InputAction jumpAction;
+    private InputAction attackAction;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -73,28 +92,50 @@ public class PlayerCombatController : MonoBehaviour
         if (spriteRenderer == null)
             spriteRenderer = GetComponent<SpriteRenderer>();
 
-        // Cache animation parameter hashes
-        animIsMoving = Animator.StringToHash("IsMoving");
-        animIsGrounded = Animator.StringToHash("IsGrounded");
-        animAttack = Animator.StringToHash("Attack");
-        animVerticalVelocity = Animator.StringToHash("VerticalVelocity");
+        // Cache animation parameter hashes (se hai Animator)
+        if (animator != null)
+        {
+            animIsMoving = Animator.StringToHash("IsMoving");
+            animIsGrounded = Animator.StringToHash("IsGrounded");
+            animAttack = Animator.StringToHash("Attack");
+            animVerticalVelocity = Animator.StringToHash("VerticalVelocity");
+        }
+    }
+
+    private void OnEnable()
+    {
+        // Input con tastiera diretta (più semplice per iniziare)
+        // Non richiede PlayerInput component
+    }
+
+    private void OnDisable()
+    {
+        // Cleanup se necessario
     }
 
     private void Update()
     {
-        // Input
-        horizontalInput = Input.GetAxisRaw("Horizontal");
+        // Input usando Keyboard direttamente (Input System)
+        horizontalInput = 0f;
         
-        // Salto (Spazio)
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded && !isAttacking)
+        if (Keyboard.current != null)
         {
-            Jump();
-        }
+            if (Keyboard.current.leftArrowKey.isPressed || Keyboard.current.aKey.isPressed)
+                horizontalInput = -1f;
+            else if (Keyboard.current.rightArrowKey.isPressed || Keyboard.current.dKey.isPressed)
+                horizontalInput = 1f;
 
-        // Attacco (F)
-        if (Input.GetKeyDown(KeyCode.F) && !isAttacking)
-        {
-            Attack();
+            // Salto (Spazio)
+            if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded && !isAttacking)
+            {
+                Jump();
+            }
+
+            // Attacco (F)
+            if (Keyboard.current.fKey.wasPressedThisFrame && !isAttacking)
+            {
+                Attack();
+            }
         }
 
         // Update attack timer
@@ -205,6 +246,10 @@ public class PlayerCombatController : MonoBehaviour
 
     private void UpdateAnimator()
     {
+        // Sistema semplice: cambia sprite in base allo stato
+        UpdateSprite();
+
+        // Se hai un Animator configurato, aggiorna anche quello
         if (animator == null) return;
 
         // IsMoving: true se si sta muovendo orizzontalmente
@@ -216,6 +261,29 @@ public class PlayerCombatController : MonoBehaviour
 
         // VerticalVelocity per animazione di salto/caduta
         animator.SetFloat(animVerticalVelocity, rb.linearVelocity.y);
+    }
+
+    private void UpdateSprite()
+    {
+        if (spriteRenderer == null) return;
+
+        // Priorità: Attack > Jump > Walk > Idle
+        if (isAttacking && attackSprite != null)
+        {
+            spriteRenderer.sprite = attackSprite;
+        }
+        else if (!isGrounded && jumpSprite != null)
+        {
+            spriteRenderer.sprite = jumpSprite;
+        }
+        else if (Mathf.Abs(horizontalInput) > 0.1f && walkSprite != null)
+        {
+            spriteRenderer.sprite = walkSprite;
+        }
+        else if (idleSprite != null)
+        {
+            spriteRenderer.sprite = idleSprite;
+        }
     }
 
     private Vector2 GetAttackPoint()
