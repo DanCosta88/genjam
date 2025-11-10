@@ -68,9 +68,15 @@ public class PlayerCombatController : MonoBehaviour
     // State
     private bool isGrounded;
     private bool isAttacking;
+    private bool isJumping;
     private float attackTimer;
+    private float jumpTimer;
     private float horizontalInput;
     private bool isFacingRight = true;
+    
+    // Walk animation
+    private float walkAnimTimer;
+    private bool useWalkSprite;
 
     // Animation parameter hashes (per performance)
     private int animIsMoving;
@@ -125,8 +131,8 @@ public class PlayerCombatController : MonoBehaviour
             else if (Keyboard.current.rightArrowKey.isPressed || Keyboard.current.dKey.isPressed)
                 horizontalInput = 1f;
 
-            // Salto (Spazio)
-            if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded && !isAttacking)
+            // Salto (Spazio) - Semplificato, salta sempre
+            if (Keyboard.current.spaceKey.wasPressedThisFrame && !isAttacking)
             {
                 Jump();
             }
@@ -147,6 +153,20 @@ public class PlayerCombatController : MonoBehaviour
                 isAttacking = false;
             }
         }
+
+        // Update jump timer
+        if (isJumping)
+        {
+            jumpTimer -= Time.deltaTime;
+            if (jumpTimer <= 0)
+            {
+                isJumping = false;
+            }
+        }
+
+        // Alterna sempre tra idle e walk per simulare animazione continua
+        walkAnimTimer += Time.deltaTime * 8f; // Velocità animazione
+        useWalkSprite = (Mathf.Sin(walkAnimTimer) > 0);
 
         // Flip sprite based on movement direction
         if (horizontalInput > 0 && !isFacingRight)
@@ -190,7 +210,12 @@ public class PlayerCombatController : MonoBehaviour
 
     private void Jump()
     {
+        // Spinge in alto
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+        
+        // Attiva sprite di salto per 0.5 secondi
+        isJumping = true;
+        jumpTimer = 0.5f;
         
         // Opzionale: suono di salto
         // AudioManager.Instance.PlaySFX("Jump");
@@ -267,22 +292,28 @@ public class PlayerCombatController : MonoBehaviour
     {
         if (spriteRenderer == null) return;
 
-        // Priorità: Attack > Jump > Walk > Idle
+        // Priorità: Attack > Jump > Walk/Idle alternati (sempre!)
         if (isAttacking && attackSprite != null)
         {
+            // Attacco
             spriteRenderer.sprite = attackSprite;
         }
-        else if (!isGrounded && jumpSprite != null)
+        else if (isJumping && jumpSprite != null)
         {
+            // Salto
             spriteRenderer.sprite = jumpSprite;
         }
-        else if (Mathf.Abs(horizontalInput) > 0.1f && walkSprite != null)
+        else
         {
-            spriteRenderer.sprite = walkSprite;
-        }
-        else if (idleSprite != null)
-        {
-            spriteRenderer.sprite = idleSprite;
+            // Animazione continua: alterna sempre tra walk e idle
+            if (useWalkSprite && walkSprite != null)
+            {
+                spriteRenderer.sprite = walkSprite;
+            }
+            else if (idleSprite != null)
+            {
+                spriteRenderer.sprite = idleSprite;
+            }
         }
     }
 
